@@ -1,0 +1,1853 @@
+package com.unifix.dashboard;
+
+import com.unifix.complaints.ComplaintForm;
+import com.unifix.complaints.ComplaintTable;
+import com.unifix.database.DBConnection;
+import java.awt.*;
+import java.awt.event.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import javax.swing.*;
+
+public class StudentDashboard extends JFrame {
+    // Main components
+    private JPanel mainPanel;
+    private JPanel contentPanel;
+    private JPanel sidebarPanel;
+    private JPanel homePanel;
+    private JPanel requestsPanel;
+    private JPanel solutionsPanel;
+    private JPanel profilePanel;
+    private int userId;
+    private String userName;
+    
+    // Navigation elements
+    private JButton homeButton, requestsButton, solutionsButton;
+    private JButton newComplaintBtn, viewComplaintsBtn, logoutBtn, backButton;
+    private JButton profileButton;
+    
+    // Dashboard summary components
+    private JLabel pendingCountLabel;
+    private JLabel needClarificationCountLabel;
+    private JLabel awaitingApprovalCountLabel;
+
+    public StudentDashboard() {
+        setTitle("UniFix ServiceDesk - Student Dashboard");
+        setSize(1200, 800);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        
+        // Set modern look and feel
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            // Customize button UI
+            UIManager.put("Button.background", Color.WHITE);
+            UIManager.put("Button.foreground", new Color(50, 50, 70));
+            UIManager.put("Button.font", new Font("Segoe UI", Font.PLAIN, 13));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Main container
+        mainPanel = new JPanel();
+        mainPanel.setLayout(new BorderLayout());
+        mainPanel.setBackground(Color.WHITE);
+        
+        // Create the top navigation bar (similar to SRMIST ServiceDesk)
+        createTopNavBar();
+        
+        // Create the main content area with sidebar and content panel
+        JPanel bodyPanel = new JPanel(new BorderLayout());
+        bodyPanel.setBackground(new Color(240, 240, 245)); // Light gray background
+        
+        // Create sidebar panel (left side)
+        createSidebarPanel();
+        
+        // Create main content panel (right side)
+        contentPanel = new JPanel(new CardLayout());
+        contentPanel.setBackground(new Color(240, 240, 245));
+        
+        // Create various content panels
+        homePanel = createHomePanel();
+        requestsPanel = createRequestsPanel();
+        solutionsPanel = createSolutionsPanel();
+        profilePanel = createProfilePanel();
+        
+        // Add all panels to the card layout
+        contentPanel.add(homePanel, "home");
+        contentPanel.add(requestsPanel, "requests");
+        contentPanel.add(solutionsPanel, "solutions");
+        contentPanel.add(profilePanel, "profile");
+        
+        // Set home panel as default
+        ((CardLayout) contentPanel.getLayout()).show(contentPanel, "home");
+        
+        // Add sidebar and content to body panel
+        bodyPanel.add(sidebarPanel, BorderLayout.WEST);
+        bodyPanel.add(contentPanel, BorderLayout.CENTER);
+        
+        // Add components to main panel
+        mainPanel.add(bodyPanel, BorderLayout.CENTER);
+        
+        // Add action listeners for navigation and actions
+        setupActionListeners();
+        
+        // Add main panel to frame
+        setContentPane(mainPanel);
+        setVisible(true);
+    }
+    
+    private void createTopNavBar() {
+        // Top navigation bar with dark background (like SRMIST)
+        JPanel navBar = new JPanel();
+        navBar.setLayout(new BorderLayout());
+        navBar.setBackground(new Color(40, 50, 70)); // Dark navy blue
+        navBar.setPreferredSize(new Dimension(getWidth(), 40));
+        
+        // Logo and brand on left
+        JPanel brandPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        brandPanel.setBackground(navBar.getBackground());
+        
+        // Add student profile logo to the left corner
+        JLabel profileLogoLabel = new JLabel();
+        try {
+            ImageIcon profileIcon = new ImageIcon("resources/icons/profile_icon.svg");
+            if (profileIcon.getIconWidth() > 0) {
+                Image img = profileIcon.getImage().getScaledInstance(22, 22, Image.SCALE_SMOOTH);
+                profileLogoLabel.setIcon(new ImageIcon(img));
+            } else {
+                // Text fallback if image not found
+                profileLogoLabel.setText("👤");
+                profileLogoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+                profileLogoLabel.setForeground(Color.WHITE);
+            }
+        } catch (Exception e) {
+            // Text fallback if image not found
+            profileLogoLabel.setText("👤");
+            profileLogoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+            profileLogoLabel.setForeground(Color.WHITE);
+        }
+        
+        JLabel brandLabel = new JLabel("UNIFIX");
+        brandLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        brandLabel.setForeground(Color.WHITE);
+        
+        JLabel serviceLabel = new JLabel("ServiceDesk");
+        serviceLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        serviceLabel.setForeground(Color.WHITE);
+        
+        brandPanel.add(profileLogoLabel);
+        brandPanel.add(Box.createHorizontalStrut(5));
+        brandPanel.add(brandLabel);
+        brandPanel.add(serviceLabel);
+        
+        // Navigation buttons
+        JPanel navButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        navButtonsPanel.setBackground(navBar.getBackground());
+        
+        homeButton = createNavButton("Home");
+        requestsButton = createNavButton("Requests");
+        solutionsButton = createNavButton("Solutions");
+        
+        // Set Home as selected by default
+        homeButton.setBackground(new Color(0, 120, 215));
+        homeButton.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(60, 70, 90)));
+        
+        navButtonsPanel.add(homeButton);
+        navButtonsPanel.add(requestsButton);
+        navButtonsPanel.add(solutionsButton);
+        
+        // User icons on the right
+        JPanel userPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
+        userPanel.setBackground(navBar.getBackground());
+        
+        // Add icons similar to those in SRMIST ServiceDesk
+        JButton searchButton = createIconButton(new ImageIcon("resources/icons/search_icon.svg"), "Search");
+        JButton notificationButton = createIconButton(new ImageIcon("resources/icons/notification_icon.svg"), "Notifications");
+        
+        // Add profile logo to the right corner
+        profileButton = createIconButton(new ImageIcon("resources/icons/profile_icon.svg"), "Profile");
+        JLabel profileLogoRightLabel = new JLabel();
+        try {
+            ImageIcon profileIcon = new ImageIcon("resources/icons/profile_icon.svg");
+            if (profileIcon.getIconWidth() > 0) {
+                Image img = profileIcon.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH);
+                profileLogoRightLabel.setIcon(new ImageIcon(img));
+                profileLogoRightLabel.setToolTipText("My Profile");
+                profileLogoRightLabel.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                profileLogoRightLabel.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        showProfilePanel();
+                    }
+                });
+            } else {
+                profileLogoRightLabel.setText("👤");
+                profileLogoRightLabel.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+                profileLogoRightLabel.setForeground(Color.WHITE);
+            }
+        } catch (Exception e) {
+            profileLogoRightLabel.setText("👤");
+            profileLogoRightLabel.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+            profileLogoRightLabel.setForeground(Color.WHITE);
+        }
+        
+        // Add back button for navigation
+        backButton = new JButton("← Back");
+        backButton.setForeground(Color.WHITE);
+        backButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        backButton.setFocusPainted(false);
+        backButton.setBorderPainted(false);
+        backButton.setContentAreaFilled(false);
+        backButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        backButton.setVisible(false); // Initially hidden
+        
+        // If icons are not available, create text-based buttons
+        if (searchButton.getIcon() == null) {
+            searchButton = createTextIconButton("🔍");
+            notificationButton = createTextIconButton("🔔");
+            profileButton = createTextIconButton("👤");
+        }
+        
+        // Add action listeners for icon buttons
+        searchButton.addActionListener(e -> showSearchDialog());
+        notificationButton.addActionListener(e -> showNotificationsPanel());
+        profileButton.addActionListener(e -> showProfilePanel());
+        backButton.addActionListener(e -> goBack());
+        
+        userPanel.add(backButton);
+        userPanel.add(Box.createHorizontalStrut(10));
+        userPanel.add(searchButton);
+        userPanel.add(notificationButton);
+        userPanel.add(profileButton);
+        userPanel.add(Box.createHorizontalStrut(5));
+        userPanel.add(profileLogoRightLabel);
+        
+        // Add components to navbar
+        navBar.add(brandPanel, BorderLayout.WEST);
+        navBar.add(navButtonsPanel, BorderLayout.CENTER);
+        navBar.add(userPanel, BorderLayout.EAST);
+        
+        mainPanel.add(navBar, BorderLayout.NORTH);
+    }
+    
+    private void createSidebarPanel() {
+        sidebarPanel = new JPanel();
+        sidebarPanel.setLayout(new BoxLayout(sidebarPanel, BoxLayout.Y_AXIS));
+        sidebarPanel.setBackground(Color.WHITE);
+        sidebarPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(220, 220, 220)));
+        sidebarPanel.setPreferredSize(new Dimension(350, getHeight()));
+        
+        // Create request summary panel (like in SRMIST ServiceDesk)
+        JPanel summaryPanel = new JPanel();
+        summaryPanel.setLayout(new BoxLayout(summaryPanel, BoxLayout.Y_AXIS));
+        summaryPanel.setBackground(Color.WHITE);
+        summaryPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        JLabel summaryTitle = new JLabel("My Request Summary");
+        summaryTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        summaryTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        // Need Clarification status panel
+        JPanel needClarificationPanel = createStatusPanel("Need Clarification", "0");
+        needClarificationCountLabel = (JLabel) needClarificationPanel.getComponent(1);
+        
+        // Pending status panel
+        JPanel pendingPanel = createStatusPanel("Pending", "0");
+        pendingCountLabel = (JLabel) pendingPanel.getComponent(1);
+        
+        // Awaiting Approval status panel
+        JPanel awaitingApprovalPanel = createStatusPanel("Awaiting Approval", "0");
+        awaitingApprovalCountLabel = (JLabel) awaitingApprovalPanel.getComponent(1);
+        
+        // Add components to summary panel
+        summaryPanel.add(summaryTitle);
+        summaryPanel.add(Box.createVerticalStrut(20));
+        summaryPanel.add(needClarificationPanel);
+        summaryPanel.add(Box.createVerticalStrut(10));
+        summaryPanel.add(pendingPanel);
+        summaryPanel.add(Box.createVerticalStrut(10));
+        summaryPanel.add(awaitingApprovalPanel);
+        
+        // Create announcements panel
+        JPanel announcementsPanel = createAnnouncementsPanel();
+        
+        // Add components to sidebar
+        sidebarPanel.add(summaryPanel);
+        sidebarPanel.add(new JSeparator());
+        sidebarPanel.add(announcementsPanel);
+    }
+    
+    private JPanel createHomePanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout(10, 10));
+        panel.setBackground(new Color(240, 240, 245)); // Light gray background
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Welcome panel with user info
+        JPanel welcomePanel = new JPanel(new BorderLayout());
+        welcomePanel.setBackground(Color.WHITE);
+        welcomePanel.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220), 1));
+        
+        JPanel welcomeContent = new JPanel();
+        welcomeContent.setLayout(new BoxLayout(welcomeContent, BoxLayout.Y_AXIS));
+        welcomeContent.setBackground(Color.WHITE);
+        welcomeContent.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
+        
+        JLabel welcomeTitle = new JLabel("Welcome to UniFix ServiceDesk");
+        welcomeTitle.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        welcomeTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel welcomeSubtitle = new JLabel("Your campus maintenance solution");
+        welcomeSubtitle.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        welcomeSubtitle.setForeground(new Color(100, 100, 100));
+        welcomeSubtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JPanel statsPanel = new JPanel(new GridLayout(1, 3, 20, 0));
+        statsPanel.setBackground(Color.WHITE);
+        statsPanel.setBorder(BorderFactory.createEmptyBorder(30, 0, 20, 0));
+        statsPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        statsPanel.setMaximumSize(new Dimension(600, 120));
+        
+        // Create stat boxes
+        JPanel pendingBox = createStatBox("Pending", "0", new Color(0, 120, 215));
+        JPanel resolvedBox = createStatBox("Resolved", "0", new Color(0, 150, 136));
+        JPanel totalBox = createStatBox("Total", "0", new Color(156, 39, 176));
+        
+        statsPanel.add(pendingBox);
+        statsPanel.add(resolvedBox);
+        statsPanel.add(totalBox);
+        
+        welcomeContent.add(welcomeTitle);
+        welcomeContent.add(Box.createVerticalStrut(10));
+        welcomeContent.add(welcomeSubtitle);
+        welcomeContent.add(statsPanel);
+        
+        welcomePanel.add(welcomeContent, BorderLayout.CENTER);
+        
+        // Quick actions panel
+        JPanel actionsPanel = new JPanel();
+        actionsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 20, 0));
+        actionsPanel.setBackground(panel.getBackground());
+        actionsPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
+        
+        newComplaintBtn = createActionButton("New Complaint", new Color(0, 120, 215));
+        viewComplaintsBtn = createActionButton("View My Complaints", new Color(0, 150, 136));
+        logoutBtn = createActionButton("Logout", new Color(211, 47, 47));
+        
+        actionsPanel.add(newComplaintBtn);
+        actionsPanel.add(viewComplaintsBtn);
+        actionsPanel.add(logoutBtn);
+        
+        // Add components to panel
+        panel.add(welcomePanel, BorderLayout.CENTER);
+        panel.add(actionsPanel, BorderLayout.SOUTH);
+        
+        return panel;
+    }
+    
+    private JPanel createRequestsPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout(10, 10));
+        panel.setBackground(new Color(240, 240, 245));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Requests header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Color.WHITE);
+        headerPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 220, 220), 1),
+            BorderFactory.createEmptyBorder(15, 20, 15, 20)
+        ));
+        
+        JLabel headerTitle = new JLabel("My Requests");
+        headerTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        
+        JButton newRequestButton = createActionButton("+ New Request", new Color(0, 120, 215));
+        newRequestButton.addActionListener(e -> openComplaintForm());
+        
+        headerPanel.add(headerTitle, BorderLayout.WEST);
+        headerPanel.add(newRequestButton, BorderLayout.EAST);
+        
+        // Request list content
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 1, 1, 1, new Color(220, 220, 220)),
+            BorderFactory.createEmptyBorder(20, 20, 20, 20)
+        ));
+        
+        // Check if user has complaints
+        if (userId > 0) {
+            // Create a complaint list panel
+            JPanel complaintsListPanel = createComplaintListPanel();
+            contentPanel.add(complaintsListPanel, BorderLayout.CENTER);
+        } else {
+            JLabel noRequestsLabel = new JLabel("You haven't submitted any requests yet");
+            noRequestsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            noRequestsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+            noRequestsLabel.setForeground(new Color(100, 100, 100));
+            
+            JButton createFirstRequestButton = createActionButton("Create Your First Request", new Color(0, 120, 215));
+            createFirstRequestButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+            createFirstRequestButton.addActionListener(e -> openComplaintForm());
+            
+            JPanel centerPanel = new JPanel();
+            centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+            centerPanel.setBackground(Color.WHITE);
+            centerPanel.add(Box.createVerticalStrut(40));
+            centerPanel.add(noRequestsLabel);
+            centerPanel.add(Box.createVerticalStrut(20));
+            centerPanel.add(createFirstRequestButton);
+            centerPanel.add(Box.createVerticalStrut(40));
+            
+            contentPanel.add(centerPanel, BorderLayout.CENTER);
+        }
+        
+        // Add components to panel
+        panel.add(headerPanel, BorderLayout.NORTH);
+        panel.add(contentPanel, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    // Create a panel showing all complaints for the current user
+    private JPanel createComplaintListPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout(0, 15));
+        panel.setBackground(Color.WHITE);
+        
+        // Filter controls
+        JPanel filterPanel = new JPanel(new BorderLayout(10, 0));
+        filterPanel.setBackground(Color.WHITE);
+        filterPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+        
+        JTextField searchField = new JTextField();
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+            BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        ));
+        searchField.putClientProperty("JTextField.placeholderText", "Search by keyword");
+        
+        JComboBox<String> statusFilter = new JComboBox<>(new String[] {
+            "All Statuses", "Pending", "In Progress", "Need Clarification", "Awaiting Approval", "Resolved", "Rejected"
+        });
+        statusFilter.setPreferredSize(new Dimension(180, 35));
+        
+        JButton refreshButton = new JButton("Refresh");
+        refreshButton.setBackground(new Color(0, 120, 215));
+        refreshButton.setForeground(Color.WHITE);
+        refreshButton.setFocusPainted(false);
+        refreshButton.addActionListener(e -> updateComplaintsList(complaintsPanel, "", "All Statuses"));
+        
+        JPanel filterRightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        filterRightPanel.setBackground(Color.WHITE);
+        filterRightPanel.add(statusFilter);
+        filterRightPanel.add(refreshButton);
+        
+        filterPanel.add(searchField, BorderLayout.CENTER);
+        filterPanel.add(filterRightPanel, BorderLayout.EAST);
+        
+        // Complaints list in a scroll pane
+        JPanel complaintsPanel = new JPanel();
+        complaintsPanel.setLayout(new BoxLayout(complaintsPanel, BoxLayout.Y_AXIS));
+        complaintsPanel.setBackground(Color.WHITE);
+        
+        try {
+            // Connect to database to get complaints
+            Connection conn = DBConnection.getConnection();
+            if (conn != null) {
+                String sql = "SELECT complaint_id, category, location, description, status, timestamp " +
+                            "FROM complaints WHERE user_id = ? ORDER BY timestamp DESC";
+                
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                pstmt.setInt(1, userId);
+                
+                ResultSet rs = pstmt.executeQuery();
+                boolean hasComplaints = false;
+                
+                while (rs.next()) {
+                    hasComplaints = true;
+                    int complaintId = rs.getInt("complaint_id");
+                    String category = rs.getString("category");
+                    String location = rs.getString("location");
+                    String description = rs.getString("description");
+                    String status = rs.getString("status");
+                    Timestamp timestamp = rs.getTimestamp("timestamp");
+                    
+                    // Create complaint card
+                    JPanel complaintCard = createComplaintCard(complaintId, category, location, description, status, timestamp);
+                    complaintsPanel.add(complaintCard);
+                    complaintsPanel.add(Box.createVerticalStrut(15));
+                }
+                
+                // Close resources
+                rs.close();
+                pstmt.close();
+                conn.close();
+                
+                if (!hasComplaints) {
+                    JLabel noComplaintsLabel = new JLabel("No complaints found.");
+                    noComplaintsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                    noComplaintsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+                    noComplaintsLabel.setForeground(new Color(100, 100, 100));
+                    complaintsPanel.add(noComplaintsLabel);
+                }
+            } else {
+                JLabel errorLabel = new JLabel("Error connecting to database");
+                errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                errorLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+                errorLabel.setForeground(Color.RED);
+                complaintsPanel.add(errorLabel);
+            }
+        } catch (Exception e) {
+            JLabel errorLabel = new JLabel("Error: " + e.getMessage());
+            errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            errorLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+            errorLabel.setForeground(Color.RED);
+            complaintsPanel.add(errorLabel);
+            System.out.println("Error loading complaints: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Add search functionality to the search field
+        searchField.addActionListener(e -> {
+            String searchText = searchField.getText().trim().toLowerCase();
+            String selectedStatus = (String) statusFilter.getSelectedItem();
+            updateComplaintsList(complaintsPanel, searchText, selectedStatus);
+        });
+        
+        // Add filter functionality to the status filter
+        statusFilter.addActionListener(e -> {
+            String searchText = searchField.getText().trim().toLowerCase();
+            String selectedStatus = (String) statusFilter.getSelectedItem();
+            updateComplaintsList(complaintsPanel, searchText, selectedStatus);
+        });
+        
+        JScrollPane scrollPane = new JScrollPane(complaintsPanel);
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        
+        panel.add(filterPanel, BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    // Create a card for an individual complaint
+    private JPanel createComplaintCard(int complaintId, String category, String location, String description, String status, Timestamp timestamp) {
+        JPanel card = new JPanel(new BorderLayout(15, 0));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(230, 230, 230)),
+            BorderFactory.createEmptyBorder(15, 15, 15, 15)
+        ));
+        
+        // Status indicator on left
+        JPanel statusIndicator = new JPanel();
+        statusIndicator.setBackground(getStatusColor(status));
+        statusIndicator.setPreferredSize(new Dimension(5, 0));
+        
+        // Main content
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(Color.WHITE);
+        
+        // Header with ID and status
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Color.WHITE);
+        
+        JLabel idLabel = new JLabel("#" + complaintId + " - " + category);
+        idLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        
+        JLabel statusLabel = new JLabel(status);
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        statusLabel.setForeground(getStatusColor(status));
+        statusLabel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(getStatusColor(status), 1),
+            BorderFactory.createEmptyBorder(2, 8, 2, 8)
+        ));
+        
+        headerPanel.add(idLabel, BorderLayout.WEST);
+        headerPanel.add(statusLabel, BorderLayout.EAST);
+        
+        // Location and timestamp
+        JPanel detailsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 0));
+        detailsPanel.setBackground(Color.WHITE);
+        
+        JLabel locationLabel = new JLabel(location);
+        locationLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        
+        // Format timestamp
+        String timeStr = "N/A";
+        if (timestamp != null) {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a");
+            timeStr = sdf.format(timestamp);
+        }
+        JLabel timeLabel = new JLabel(timeStr);
+        timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        timeLabel.setForeground(new Color(100, 100, 100));
+        
+        detailsPanel.add(locationLabel);
+        detailsPanel.add(new JLabel("•"));
+        detailsPanel.add(timeLabel);
+        
+        // Description (shortened)
+        String shortDesc = description.length() > 100 ? description.substring(0, 100) + "..." : description;
+        JLabel descLabel = new JLabel("<html><body width='500px'>" + shortDesc + "</body></html>");
+        descLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        
+        // Action buttons panel
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        actionPanel.setBackground(Color.WHITE);
+        
+        // View button
+        JButton viewButton = new JButton("View Details");
+        viewButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        viewButton.setFocusPainted(false);
+        viewButton.setBackground(new Color(0, 120, 215));
+        viewButton.setForeground(Color.WHITE);
+        viewButton.setPreferredSize(new Dimension(100, 30));
+        viewButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        viewButton.addActionListener(e -> new com.unifix.complaints.ComplaintDetailsView(complaintId));
+        
+        // Update button (for certain statuses)
+        if (status.equalsIgnoreCase("Need Clarification") || status.equalsIgnoreCase("Awaiting Approval")) {
+            JButton updateButton = new JButton("Update");
+            updateButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            updateButton.setFocusPainted(false);
+            updateButton.setBackground(new Color(255, 152, 0));
+            updateButton.setForeground(Color.WHITE);
+            updateButton.setPreferredSize(new Dimension(80, 30));
+            updateButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            updateButton.addActionListener(e -> {
+                // Open complaint form for updating
+                openComplaintForm();
+                JOptionPane.showMessageDialog(null, 
+                    "Please submit a new request with additional information referencing complaint #" + complaintId, 
+                    "Update Request", 
+                    JOptionPane.INFORMATION_MESSAGE);
+            });
+            actionPanel.add(updateButton);
+            actionPanel.add(Box.createHorizontalStrut(5));
+        }
+        
+        actionPanel.add(viewButton);
+        
+        // Add everything to the content panel
+        headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        detailsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        contentPanel.add(headerPanel);
+        contentPanel.add(Box.createVerticalStrut(5));
+        contentPanel.add(detailsPanel);
+        contentPanel.add(Box.createVerticalStrut(10));
+        contentPanel.add(descLabel);
+        
+        // Add all components to the card
+        card.add(statusIndicator, BorderLayout.WEST);
+        card.add(contentPanel, BorderLayout.CENTER);
+        card.add(actionPanel, BorderLayout.EAST);
+        
+        return card;
+    }
+    
+    // Update the complaints list based on search and filter
+    private void updateComplaintsList(JPanel complaintsPanel, String searchText, String selectedStatus) {
+        complaintsPanel.removeAll();
+        
+        try {
+            // Connect to database to get complaints
+            Connection conn = DBConnection.getConnection();
+            if (conn != null) {
+                String sql = "SELECT complaint_id, category, location, description, status, timestamp " +
+                            "FROM complaints WHERE user_id = ? ";
+                
+                // Add status filter if not "All Statuses"
+                if (!"All Statuses".equals(selectedStatus)) {
+                    sql += "AND status = ? ";
+                }
+                
+                // Add search filter if not empty
+                if (!searchText.isEmpty()) {
+                    sql += "AND (LOWER(category) LIKE ? OR LOWER(description) LIKE ? OR LOWER(location) LIKE ?) ";
+                }
+                
+                sql += "ORDER BY timestamp DESC";
+                
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                pstmt.setInt(1, userId);
+                
+                int paramIndex = 2;
+                if (!"All Statuses".equals(selectedStatus)) {
+                    pstmt.setString(paramIndex++, selectedStatus);
+                }
+                
+                if (!searchText.isEmpty()) {
+                    String searchPattern = "%" + searchText + "%";
+                    pstmt.setString(paramIndex++, searchPattern);
+                    pstmt.setString(paramIndex++, searchPattern);
+                    pstmt.setString(paramIndex++, searchPattern);
+                }
+                
+                ResultSet rs = pstmt.executeQuery();
+                boolean hasComplaints = false;
+                
+                while (rs.next()) {
+                    hasComplaints = true;
+                    int complaintId = rs.getInt("complaint_id");
+                    String category = rs.getString("category");
+                    String location = rs.getString("location");
+                    String description = rs.getString("description");
+                    String status = rs.getString("status");
+                    Timestamp timestamp = rs.getTimestamp("timestamp");
+                    
+                    // Create complaint card
+                    JPanel complaintCard = createComplaintCard(complaintId, category, location, description, status, timestamp);
+                    complaintsPanel.add(complaintCard);
+                    complaintsPanel.add(Box.createVerticalStrut(15));
+                }
+                
+                // Close resources
+                rs.close();
+                pstmt.close();
+                conn.close();
+                
+                if (!hasComplaints) {
+                    JLabel noComplaintsLabel = new JLabel("No complaints found matching your criteria.");
+                    noComplaintsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                    noComplaintsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+                    noComplaintsLabel.setForeground(new Color(100, 100, 100));
+                    complaintsPanel.add(noComplaintsLabel);
+                }
+            }
+        } catch (Exception e) {
+            JLabel errorLabel = new JLabel("Error: " + e.getMessage());
+            errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            errorLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+            errorLabel.setForeground(Color.RED);
+            complaintsPanel.add(errorLabel);
+            System.out.println("Error filtering complaints: " + e.getMessage());
+        }
+        
+        complaintsPanel.revalidate();
+        complaintsPanel.repaint();
+    }
+    }
+    
+    private JPanel createSolutionsPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout(10, 10));
+        panel.setBackground(new Color(240, 240, 245)); // Light gray background
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Create popular solutions panel (like in SRMIST ServiceDesk)
+        JPanel solutionsPanelInner = new JPanel();
+        solutionsPanelInner.setLayout(new BorderLayout());
+        solutionsPanelInner.setBackground(Color.WHITE);
+        solutionsPanelInner.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220), 1));
+        
+        // Solutions header
+        JPanel solutionsHeader = new JPanel(new BorderLayout());
+        solutionsHeader.setBackground(Color.WHITE);
+        solutionsHeader.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        
+        JLabel solutionsTitle = new JLabel("Popular Solutions");
+        solutionsTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        
+        JLabel moreLink = new JLabel("[ More ]");
+        moreLink.setForeground(new Color(0, 120, 215));
+        moreLink.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        solutionsHeader.add(solutionsTitle, BorderLayout.WEST);
+        solutionsHeader.add(moreLink, BorderLayout.EAST);
+        
+        // Solutions search panel
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBackground(Color.WHITE);
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(5, 15, 15, 15));
+        
+        JTextField searchField = new JTextField();
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+            BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        ));
+        searchField.putClientProperty("JTextField.placeholderText", "Search Solution");
+        
+        searchPanel.add(searchField, BorderLayout.CENTER);
+        
+        // Solutions content
+        JPanel solutionsContent = new JPanel(new BorderLayout());
+        solutionsContent.setBackground(Color.WHITE);
+        solutionsContent.setBorder(BorderFactory.createEmptyBorder(0, 15, 15, 15));
+        
+        JLabel noSolutionsLabel = new JLabel("No solutions available");
+        noSolutionsLabel.setForeground(new Color(100, 100, 100));
+        noSolutionsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        noSolutionsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        
+        solutionsContent.add(noSolutionsLabel, BorderLayout.CENTER);
+        
+        // Add components to solutions panel
+        solutionsPanelInner.add(solutionsHeader, BorderLayout.NORTH);
+        solutionsPanelInner.add(searchPanel, BorderLayout.CENTER);
+        solutionsPanelInner.add(solutionsContent, BorderLayout.SOUTH);
+        
+        panel.add(solutionsPanelInner, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    private JPanel createProfilePanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout(10, 10));
+        panel.setBackground(new Color(240, 240, 245));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Profile header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Color.WHITE);
+        headerPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 220, 220), 1),
+            BorderFactory.createEmptyBorder(20, 20, 20, 20)
+        ));
+        
+        // User info panel
+        JPanel userInfoPanel = new JPanel();
+        userInfoPanel.setLayout(new BoxLayout(userInfoPanel, BoxLayout.X_AXIS));
+        userInfoPanel.setBackground(Color.WHITE);
+        
+        // Profile picture
+        JLabel profilePic = new JLabel();
+        profilePic.setText("👤");
+        profilePic.setFont(new Font("Segoe UI", Font.PLAIN, 64));
+        profilePic.setPreferredSize(new Dimension(100, 100));
+        profilePic.setHorizontalAlignment(SwingConstants.CENTER);
+        
+        // User details
+        JPanel detailsPanel = new JPanel();
+        detailsPanel.setLayout(new BoxLayout(detailsPanel, BoxLayout.Y_AXIS));
+        detailsPanel.setBackground(Color.WHITE);
+        detailsPanel.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 0));
+        detailsPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
+        
+        JLabel nameLabel = new JLabel("Student Name");
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        
+        JLabel emailLabel = new JLabel("student@example.com");
+        emailLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        emailLabel.setForeground(new Color(100, 100, 100));
+        
+        JLabel roleLabel = new JLabel("Student");
+        roleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        roleLabel.setForeground(new Color(0, 120, 215));
+        
+        detailsPanel.add(nameLabel);
+        detailsPanel.add(Box.createVerticalStrut(5));
+        detailsPanel.add(emailLabel);
+        detailsPanel.add(Box.createVerticalStrut(10));
+        detailsPanel.add(roleLabel);
+        
+        userInfoPanel.add(profilePic);
+        userInfoPanel.add(detailsPanel);
+        
+        headerPanel.add(userInfoPanel, BorderLayout.NORTH);
+        
+        // Profile content
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
+        
+        // Account settings section
+        JLabel settingsLabel = new JLabel("Account Settings");
+        settingsLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        settingsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JButton passwordButton = createSettingsButton("Change Password");
+        JButton notificationsButton = createSettingsButton("Notification Preferences");
+        JButton logoutButton = createActionButton("Logout", new Color(211, 47, 47));
+        logoutButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        logoutButton.setMaximumSize(new Dimension(200, 40));
+        logoutButton.addActionListener(e -> logout());
+        
+        contentPanel.add(settingsLabel);
+        contentPanel.add(Box.createVerticalStrut(10));
+        contentPanel.add(passwordButton);
+        contentPanel.add(Box.createVerticalStrut(5));
+        contentPanel.add(notificationsButton);
+        contentPanel.add(Box.createVerticalStrut(20));
+        contentPanel.add(logoutButton);
+        
+        headerPanel.add(contentPanel, BorderLayout.CENTER);
+        
+        panel.add(headerPanel, BorderLayout.CENTER);
+        
+        return panel;
+    }
+
+    private JButton createNavButton(String text) {
+        JButton button = new JButton(text);
+        button.setForeground(Color.WHITE);
+        button.setBackground(new Color(40, 50, 70)); // Same as navbar
+        button.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(90, 40));
+        
+        // Add hover effect
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                if (!button.getBackground().equals(new Color(0, 120, 215))) {
+                    button.setBackground(new Color(60, 70, 90));
+                }
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (!button.getBackground().equals(new Color(0, 120, 215))) {
+                    button.setBackground(new Color(40, 50, 70));
+                }
+            }
+        });
+        
+        return button;
+    }
+    
+    private JButton createIconButton(ImageIcon icon, String tooltip) {
+        JButton button = new JButton();
+        if (icon != null) {
+            // Scale icon to appropriate size
+            Image img = icon.getImage().getScaledInstance(18, 18, Image.SCALE_SMOOTH);
+            button.setIcon(new ImageIcon(img));
+        }
+        button.setToolTipText(tooltip);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setForeground(Color.WHITE);
+        
+        return button;
+    }
+    
+    private JButton createTextIconButton(String text) {
+        JButton button = new JButton(text);
+        button.setForeground(Color.WHITE);
+        button.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        return button;
+    }
+    
+    private JPanel createStatusPanel(String statusName, String count) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JLabel nameLabel = new JLabel(statusName);
+        nameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        nameLabel.setForeground(new Color(80, 80, 80));
+        nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JLabel countLabel = new JLabel(count);
+        countLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        countLabel.setForeground(new Color(50, 50, 50));
+        countLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        panel.add(nameLabel);
+        panel.add(countLabel);
+        
+        return panel;
+    }
+    
+    private JPanel createAnnouncementsPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Header with title and "Show All" link
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Color.WHITE);
+        headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        headerPanel.setMaximumSize(new Dimension(Short.MAX_VALUE, 30));
+        
+        // Create icon for announcements (similar to the megaphone in SRMIST)
+        JLabel iconLabel = new JLabel("📢");
+        iconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        
+        JLabel titleLabel = new JLabel("Announcements");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        titlePanel.setBackground(Color.WHITE);
+        titlePanel.add(iconLabel);
+        titlePanel.add(titleLabel);
+        
+        JLabel showAllLink = new JLabel("Show All");
+        showAllLink.setForeground(new Color(0, 120, 215));
+        showAllLink.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        showAllLink.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        
+        headerPanel.add(titlePanel, BorderLayout.WEST);
+        headerPanel.add(showAllLink, BorderLayout.EAST);
+        
+        // Content panel with "no announcements" message
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.setBackground(Color.WHITE);
+        contentPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
+        
+        // Create megaphone icon similar to SRMIST ServiceDesk
+        JLabel megaphoneIconLabel = new JLabel();
+        try {
+            ImageIcon megaphoneIcon = new ImageIcon("resources/megaphone_icon.png");
+            if (megaphoneIcon.getIconWidth() > 0) {
+                Image img = megaphoneIcon.getImage().getScaledInstance(80, 80, Image.SCALE_SMOOTH);
+                megaphoneIconLabel.setIcon(new ImageIcon(img));
+            } else {
+                // Text fallback if image not found
+                megaphoneIconLabel.setText("📣");
+                megaphoneIconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 48));
+            }
+        } catch (Exception e) {
+            // Text fallback if image not found
+            megaphoneIconLabel.setText("📣");
+            megaphoneIconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 48));
+        }
+        megaphoneIconLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        
+        JLabel noAnnouncementsLabel = new JLabel("There are no new announcements today.");
+        noAnnouncementsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        noAnnouncementsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        noAnnouncementsLabel.setForeground(new Color(100, 100, 100));
+        
+        JPanel centerPanel = new JPanel();
+        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+        centerPanel.setBackground(Color.WHITE);
+        
+        megaphoneIconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        noAnnouncementsLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        centerPanel.add(Box.createVerticalStrut(10));
+        centerPanel.add(megaphoneIconLabel);
+        centerPanel.add(Box.createVerticalStrut(10));
+        centerPanel.add(noAnnouncementsLabel);
+        centerPanel.add(Box.createVerticalStrut(20));
+        
+        contentPanel.add(centerPanel, BorderLayout.CENTER);
+        
+        // Add all components to main panel
+        panel.add(headerPanel);
+        panel.add(contentPanel);
+        
+        return panel;
+    }
+    
+    private JButton createActionButton(String text, Color color) {
+        JButton button = new JButton(text);
+        button.setBackground(color);
+        button.setForeground(Color.WHITE);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+        
+        // Add hover effect
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(color.darker());
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(color);
+            }
+        });
+        
+        return button;
+    }
+    
+    // Helper method to create a stat box for the dashboard
+    private JPanel createStatBox(String label, String value, Color color) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 0, 3, color),
+            BorderFactory.createEmptyBorder(15, 15, 15, 15)
+        ));
+        
+        JLabel valueLabel = new JLabel(value);
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        valueLabel.setForeground(color);
+        valueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel nameLabel = new JLabel(label);
+        nameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        nameLabel.setForeground(new Color(80, 80, 80));
+        nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        panel.add(valueLabel);
+        panel.add(Box.createVerticalStrut(5));
+        panel.add(nameLabel);
+        
+        return panel;
+    }
+    
+    // Helper method to create settings buttons
+    private JButton createSettingsButton(String text) {
+        JButton button = new JButton(text);
+        button.setBackground(Color.WHITE);
+        button.setForeground(new Color(50, 50, 50));
+        button.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setHorizontalAlignment(SwingConstants.LEFT);
+        button.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
+        button.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setForeground(new Color(0, 120, 215));
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setForeground(new Color(50, 50, 50));
+            }
+        });
+        
+        return button;
+    }
+    
+    // Search panel for integrated search
+    private JPanel createSearchPanel() {
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBackground(new Color(240, 240, 245));
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Create a custom panel to embed the search functionality
+        JPanel embedPanel = new JPanel(new BorderLayout());
+        embedPanel.setBackground(Color.WHITE);
+        embedPanel.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220), 1));
+        
+        // Create header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(new Color(40, 50, 70));
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        
+        JLabel headerLabel = new JLabel("Search");
+        headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        headerLabel.setForeground(Color.WHITE);
+        headerPanel.add(headerLabel, BorderLayout.WEST);
+        
+        embedPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Create search content
+        JPanel searchContent = new JPanel(new BorderLayout(10, 10));
+        searchContent.setBackground(Color.WHITE);
+        searchContent.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Search input area
+        JPanel inputPanel = new JPanel(new BorderLayout(10, 0));
+        inputPanel.setBackground(Color.WHITE);
+        
+        JTextField searchField = new JTextField();
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+            BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        ));
+        searchField.putClientProperty("JTextField.placeholderText", "Enter search term");
+        
+        JButton searchButton = new JButton("Search");
+        searchButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        searchButton.setBackground(new Color(0, 120, 215));
+        searchButton.setForeground(Color.WHITE);
+        searchButton.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
+        searchButton.setFocusPainted(false);
+        
+        inputPanel.add(searchField, BorderLayout.CENTER);
+        inputPanel.add(searchButton, BorderLayout.EAST);
+        
+        // Results panel
+        JPanel resultsPanel = new JPanel(new BorderLayout());
+        resultsPanel.setBackground(Color.WHITE);
+        resultsPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
+        
+        // Initially show "Enter search term" message
+        JLabel initialLabel = new JLabel("Enter a search term and click Search");
+        initialLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        initialLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
+        initialLabel.setForeground(new Color(120, 120, 120));
+        
+        resultsPanel.add(initialLabel, BorderLayout.CENTER);
+        
+        // Set up search action
+        searchButton.addActionListener(e -> {
+            String searchTerm = searchField.getText().trim();
+            if (searchTerm.isEmpty()) {
+                resultsPanel.removeAll();
+                resultsPanel.add(initialLabel, BorderLayout.CENTER);
+            } else {
+                // Perform search and show results in the panel
+                resultsPanel.removeAll();
+                
+                JPanel searchResults = performSearch(searchTerm);
+                resultsPanel.add(searchResults, BorderLayout.CENTER);
+            }
+            resultsPanel.revalidate();
+            resultsPanel.repaint();
+        });
+        
+        searchContent.add(inputPanel, BorderLayout.NORTH);
+        searchContent.add(resultsPanel, BorderLayout.CENTER);
+        
+        embedPanel.add(searchContent, BorderLayout.CENTER);
+        searchPanel.add(embedPanel, BorderLayout.CENTER);
+        
+        return searchPanel;
+    }
+    
+    // Method to perform search and return results panel
+    private JPanel performSearch(String searchTerm) {
+        JPanel resultsPanel = new JPanel();
+        resultsPanel.setLayout(new BoxLayout(resultsPanel, BoxLayout.Y_AXIS));
+        resultsPanel.setBackground(Color.WHITE);
+        
+        JLabel resultsLabel = new JLabel("Search results for: " + searchTerm);
+        resultsLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        resultsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        resultsPanel.add(resultsLabel);
+        resultsPanel.add(Box.createVerticalStrut(15));
+        
+        // Connect to database and search for results
+        try (Connection conn = com.unifix.database.DBConnection.getConnection()) {
+            if (conn != null) {
+                // Search in complaints
+                String sql = "SELECT complaint_id, category, location, status, description FROM complaints " +
+                             "WHERE user_id = ? AND (category LIKE ? OR description LIKE ? OR location LIKE ?)";
+                
+                try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                    pstmt.setInt(1, userId);
+                    pstmt.setString(2, "%" + searchTerm + "%");
+                    pstmt.setString(3, "%" + searchTerm + "%");
+                    pstmt.setString(4, "%" + searchTerm + "%");
+                    
+                    ResultSet rs = pstmt.executeQuery();
+                    boolean hasResults = false;
+                    
+                    JPanel complaintsResults = new JPanel();
+                    complaintsResults.setLayout(new BoxLayout(complaintsResults, BoxLayout.Y_AXIS));
+                    complaintsResults.setBackground(Color.WHITE);
+                    complaintsResults.setBorder(BorderFactory.createTitledBorder("Complaints"));
+                    complaintsResults.setAlignmentX(Component.LEFT_ALIGNMENT);
+                    
+                    while (rs.next()) {
+                        hasResults = true;
+                        int complaintId = rs.getInt("complaint_id");
+                        String category = rs.getString("category");
+                        String location = rs.getString("location");
+                        String status = rs.getString("status");
+                        String description = rs.getString("description");
+                        
+                        // Create a result item panel
+                        JPanel resultItem = new JPanel(new BorderLayout());
+                        resultItem.setBackground(Color.WHITE);
+                        resultItem.setBorder(BorderFactory.createCompoundBorder(
+                            BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(230, 230, 230)),
+                            BorderFactory.createEmptyBorder(10, 5, 10, 5)
+                        ));
+                        resultItem.setMaximumSize(new Dimension(Short.MAX_VALUE, 100));
+                        resultItem.setAlignmentX(Component.LEFT_ALIGNMENT);
+                        
+                        // Title and ID
+                        JLabel titleLabel = new JLabel("Complaint #" + complaintId + ": " + category);
+                        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                        
+                        // Details
+                        JPanel detailsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+                        detailsPanel.setBackground(Color.WHITE);
+                        
+                        JLabel locationLabel = new JLabel("Location: " + location);
+                        JLabel statusLabel = new JLabel("Status: " + status);
+                        statusLabel.setForeground(getStatusColor(status));
+                        
+                        detailsPanel.add(locationLabel);
+                        detailsPanel.add(statusLabel);
+                        
+                        // Description snippet (show first 100 chars)
+                        String descSnippet = description.length() > 100 ? 
+                                            description.substring(0, 100) + "..." : 
+                                            description;
+                        JLabel descLabel = new JLabel("<html><body width='400px'>" + descSnippet + "</body></html>");
+                        descLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                        
+                        // Put it all together
+                        JPanel infoPanel = new JPanel();
+                        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+                        infoPanel.setBackground(Color.WHITE);
+                        
+                        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                        detailsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                        descLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                        
+                        infoPanel.add(titleLabel);
+                        infoPanel.add(Box.createVerticalStrut(5));
+                        infoPanel.add(detailsPanel);
+                        infoPanel.add(Box.createVerticalStrut(5));
+                        infoPanel.add(descLabel);
+                        
+                        resultItem.add(infoPanel, BorderLayout.CENTER);
+                        
+                        // View button
+                        JButton viewButton = new JButton("View");
+                        viewButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                        int finalComplaintId = complaintId; // For use in lambda
+                        viewButton.addActionListener(e -> 
+                            new com.unifix.complaints.ComplaintDetailsView(finalComplaintId));
+                        
+                        resultItem.add(viewButton, BorderLayout.EAST);
+                        
+                        // Add to complaints results
+                        complaintsResults.add(resultItem);
+                    }
+                    
+                    if (!hasResults) {
+                        JLabel noComplaintsLabel = new JLabel("No complaints found matching: " + searchTerm);
+                        noComplaintsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                        complaintsResults.add(noComplaintsLabel);
+                    }
+                    
+                    // Add complaints section to results
+                    resultsPanel.add(complaintsResults);
+                }
+            } else {
+                JLabel errorLabel = new JLabel("Error: Could not connect to database");
+                errorLabel.setForeground(Color.RED);
+                resultsPanel.add(errorLabel);
+            }
+        } catch (Exception e) {
+            JLabel errorLabel = new JLabel("Error searching: " + e.getMessage());
+            errorLabel.setForeground(Color.RED);
+            resultsPanel.add(errorLabel);
+            e.printStackTrace();
+        }
+        
+        return resultsPanel;
+    }
+    
+    // Helper method to get color for status
+    private Color getStatusColor(String status) {
+        switch (status.toLowerCase()) {
+            case "pending":
+                return new Color(33, 150, 243);
+            case "in progress":
+                return new Color(255, 152, 0);
+            case "resolved":
+                return new Color(76, 175, 80);
+            case "rejected":
+                return new Color(244, 67, 54);
+            case "need clarification":
+                return new Color(156, 39, 176);
+            default:
+                return new Color(117, 117, 117);
+        }
+    }
+    
+    // Method to show search dialog that now uses the integrated search panel
+    private void showSearchDialog() {
+        // Create search panel if it doesn't exist
+        JPanel searchPanel = createSearchPanel();
+        
+        // Add it to content panel if not already added
+        boolean exists = false;
+        for (Component c : contentPanel.getComponents()) {
+            if (c instanceof JPanel && "search".equals(c.getName())) {
+                exists = true;
+                break;
+            }
+        }
+        
+        if (!exists) {
+            searchPanel.setName("search");
+            contentPanel.add(searchPanel, "search");
+        }
+        
+        // Show search panel
+        ((CardLayout) contentPanel.getLayout()).show(contentPanel, "search");
+        
+        // Show back button
+        backButton.setVisible(true);
+        
+        // Reset active buttons
+        resetNavButtons();
+    }
+    
+    // Method to show notifications panel
+    private void showNotificationsPanel() {
+        // Show the back button when in a sub-panel
+        backButton.setVisible(true);
+        JOptionPane.showMessageDialog(this, "No new notifications", "Notifications", JOptionPane.INFORMATION_MESSAGE);
+    }
+    
+    // Method to show profile panel
+    private void showProfilePanel() {
+        // Switch to profile panel
+        ((CardLayout) contentPanel.getLayout()).show(contentPanel, "profile");
+        // Show the back button
+        backButton.setVisible(true);
+        // Update active button
+        resetNavButtons();
+    }
+    
+    // Method to go back to previous panel
+    private void goBack() {
+        // Get the currently showing panel name
+        String currentPanel = getCurrentPanelName();
+        
+        // Return to appropriate panel based on context
+        if (currentPanel.equals("complaintForm") || currentPanel.equals("complaintsTable")) {
+            // If we came from requests section, go back to requests panel
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "requests");
+            setActiveNavButton(requestsButton);
+        } else if (currentPanel.equals("search")) {
+            // If we're in search, go back to home panel
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "home");
+            setActiveNavButton(homeButton);
+        } else if (currentPanel.equals("profile")) {
+            // If we're in profile, go back to home panel
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "home");
+            setActiveNavButton(homeButton);
+        } else {
+            // Default: return to home panel
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "home");
+            setActiveNavButton(homeButton);
+        }
+        
+        // Hide back button on main panels
+        backButton.setVisible(false);
+    }
+    
+    // Helper method to get the name of the currently visible panel in CardLayout
+    private String getCurrentPanelName() {
+        for (Component comp : contentPanel.getComponents()) {
+            if (comp.isVisible()) {
+                return comp.getName();
+            }
+        }
+        return "home"; // Default
+    }
+    
+    private void setupActionListeners() {
+        // Navigation bar listeners
+        homeButton.addActionListener(e -> {
+            setActiveNavButton(homeButton);
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "home");
+            backButton.setVisible(false);
+        });
+        
+        requestsButton.addActionListener(e -> {
+            setActiveNavButton(requestsButton);
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "requests");
+            backButton.setVisible(false);
+        });
+        
+        solutionsButton.addActionListener(e -> {
+            setActiveNavButton(solutionsButton);
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "solutions");
+            backButton.setVisible(false);
+        });
+        
+        // Action button listeners
+        newComplaintBtn.addActionListener(e -> openComplaintForm());
+        viewComplaintsBtn.addActionListener(e -> viewComplaints());
+        logoutBtn.addActionListener(e -> logout());
+    }
+    
+    private void resetNavButtons() {
+        homeButton.setBackground(new Color(40, 50, 70));
+        requestsButton.setBackground(new Color(40, 50, 70));
+        solutionsButton.setBackground(new Color(40, 50, 70));
+    }
+    
+    private void setActiveNavButton(JButton activeButton) {
+        // Reset all buttons
+        resetNavButtons();
+        
+        // Set active button
+        activeButton.setBackground(new Color(0, 120, 215));
+    }
+    
+    // Integrated complaint form panel
+    private JPanel createComplaintFormPanel() {
+        JPanel complaintFormPanel = new JPanel(new BorderLayout());
+        complaintFormPanel.setBackground(new Color(240, 240, 245));
+        complaintFormPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        if (userId > 0) {
+            // Create a custom panel to embed the complaint form
+            JPanel embedPanel = new JPanel(new BorderLayout());
+            embedPanel.setBackground(Color.WHITE);
+            embedPanel.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220), 1));
+            
+            // Create header
+            JPanel headerPanel = new JPanel(new BorderLayout());
+            headerPanel.setBackground(new Color(40, 50, 70));
+            headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+            
+            JLabel headerLabel = new JLabel("Submit New Complaint");
+            headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+            headerLabel.setForeground(Color.WHITE);
+            headerPanel.add(headerLabel, BorderLayout.WEST);
+            
+            embedPanel.add(headerPanel, BorderLayout.NORTH);
+            
+            // Create form with all components from ComplaintForm but embedded
+            ComplaintForm form = new ComplaintForm(userId);
+            form.setVisible(false); // Don't show the window
+            
+            // Get content pane from the form
+            Container formContent = form.getContentPane();
+            formContent.setBackground(Color.WHITE);
+            
+            // Create a wrapper panel to hold the form content
+            JPanel formWrapper = new JPanel(new BorderLayout());
+            formWrapper.setBackground(Color.WHITE);
+            formWrapper.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+            formWrapper.add(formContent, BorderLayout.CENTER);
+            
+            embedPanel.add(formWrapper, BorderLayout.CENTER);
+            complaintFormPanel.add(embedPanel, BorderLayout.CENTER);
+        } else {
+            JLabel errorLabel = new JLabel("Error: User ID not set!");
+            errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            complaintFormPanel.add(errorLabel, BorderLayout.CENTER);
+        }
+        
+        return complaintFormPanel;
+    }
+    
+    // Integrated complaints table panel
+    private JPanel createComplaintsTablePanel() {
+        JPanel complaintsTablePanel = new JPanel(new BorderLayout());
+        complaintsTablePanel.setBackground(new Color(240, 240, 245));
+        complaintsTablePanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        if (userId > 0) {
+            // Create a custom panel to embed the complaint table
+            JPanel embedPanel = new JPanel(new BorderLayout());
+            embedPanel.setBackground(Color.WHITE);
+            embedPanel.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220), 1));
+            
+            // Create header
+            JPanel headerPanel = new JPanel(new BorderLayout());
+            headerPanel.setBackground(new Color(40, 50, 70));
+            headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+            
+            JLabel headerLabel = new JLabel("My Complaints");
+            headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+            headerLabel.setForeground(Color.WHITE);
+            headerPanel.add(headerLabel, BorderLayout.WEST);
+            
+            embedPanel.add(headerPanel, BorderLayout.NORTH);
+            
+            // Create complaint table but embedded in our panel
+            ComplaintTable table = new ComplaintTable(userId);
+            table.setVisible(false); // Don't show the window
+            
+            // Get content pane from the table
+            Container tableContent = table.getContentPane();
+            tableContent.setBackground(Color.WHITE);
+            
+            // Create a wrapper panel to hold the table content
+            JPanel tableWrapper = new JPanel(new BorderLayout());
+            tableWrapper.setBackground(Color.WHITE);
+            tableWrapper.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+            tableWrapper.add(tableContent, BorderLayout.CENTER);
+            
+            embedPanel.add(tableWrapper, BorderLayout.CENTER);
+            complaintsTablePanel.add(embedPanel, BorderLayout.CENTER);
+        } else {
+            JLabel errorLabel = new JLabel("Error: User ID not set!");
+            errorLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            complaintsTablePanel.add(errorLabel, BorderLayout.CENTER);
+        }
+        
+        return complaintsTablePanel;
+    }
+
+    private void openComplaintForm() {
+        if (userId > 0) {
+            // Create complaint form panel if it doesn't exist
+            JPanel complaintFormPanel = createComplaintFormPanel();
+            
+            // Add it to content panel if not already added
+            boolean exists = false;
+            for (Component c : contentPanel.getComponents()) {
+                if (c instanceof JPanel && "complaintForm".equals(c.getName())) {
+                    exists = true;
+                    break;
+                }
+            }
+            
+            if (!exists) {
+                complaintFormPanel.setName("complaintForm");
+                contentPanel.add(complaintFormPanel, "complaintForm");
+            }
+            
+            // Show complaint form panel
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "complaintForm");
+            
+            // Show back button
+            backButton.setVisible(true);
+            
+            // Reset active buttons
+            resetNavButtons();
+        } else {
+            JOptionPane.showMessageDialog(this, "Error: User ID not set!");
+        }
+    }
+
+    private void viewComplaints() {
+        if (userId > 0) {
+            // Create complaints table panel if it doesn't exist
+            JPanel complaintsTablePanel = createComplaintsTablePanel();
+            
+            // Add it to content panel if not already added
+            boolean exists = false;
+            for (Component c : contentPanel.getComponents()) {
+                if (c instanceof JPanel && "complaintsTable".equals(c.getName())) {
+                    exists = true;
+                    break;
+                }
+            }
+            
+            if (!exists) {
+                complaintsTablePanel.setName("complaintsTable");
+                contentPanel.add(complaintsTablePanel, "complaintsTable");
+            }
+            
+            // Show complaints table panel
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "complaintsTable");
+            
+            // Show back button
+            backButton.setVisible(true);
+            
+            // Reset active buttons
+            resetNavButtons();
+        } else {
+            JOptionPane.showMessageDialog(this, "Error: User ID not set!");
+        }
+    }
+
+    private void logout() {
+        int confirm = JOptionPane.showConfirmDialog(
+            this,
+            "Are you sure you want to logout?",
+            "Confirm Logout",
+            JOptionPane.YES_NO_OPTION
+        );
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            dispose();
+            // Return to login page
+            SwingUtilities.invokeLater(() -> {
+                com.unifix.auth.LoginPage loginPage = new com.unifix.auth.LoginPage();
+                loginPage.setVisible(true);
+            });
+        }
+    }
+
+    // Method to set user info when logging in
+    public void setUserInfo(int userId, String userName) {
+        this.userId = userId;
+        this.userName = userName;
+        
+        // Update the title with user name
+        setTitle("UniFix ServiceDesk - " + userName);
+        
+        try {
+            // Update user name in profile panel
+            JPanel profilePanelContent = (JPanel) profilePanel.getComponent(0);
+            JPanel userInfoPanel = (JPanel) ((JPanel) profilePanelContent.getComponent(0)).getComponent(0);
+            JPanel detailsPanel = (JPanel) userInfoPanel.getComponent(1);
+            
+            // Update the name label
+            JLabel nameLabel = (JLabel) detailsPanel.getComponent(0);
+            nameLabel.setText(userName);
+            
+            // Get user email from database
+            String userEmail = getUserEmail(userId);
+            if (userEmail != null && !userEmail.isEmpty()) {
+                JLabel emailLabel = (JLabel) detailsPanel.getComponent(2);
+                emailLabel.setText(userEmail);
+            }
+            
+            // Update name in home panel
+            JPanel homeContent = (JPanel) homePanel.getComponent(0);
+            JPanel welcomeContent = (JPanel) homeContent.getComponent(0);
+            JLabel welcomeTitle = (JLabel) welcomeContent.getComponent(0);
+            welcomeTitle.setText("Welcome, " + userName);
+            
+            // Update complaint counts from database with actual values
+            updateComplaintCounts();
+            
+            // Update stats on home page with actual data
+            updateHomePageStats();
+            
+            // Refresh requests panel to show current data
+            refreshRequestsPanel();
+        } catch (Exception e) {
+            System.out.println("Error updating user interface: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    // Method to refresh the requests panel with current data
+    private void refreshRequestsPanel() {
+        // Re-create the requests panel with updated data
+        requestsPanel = createRequestsPanel();
+        
+        // Update the card layout with the new panel
+        contentPanel.remove(contentPanel.getComponentCount() - 1); // Remove old requests panel
+        contentPanel.add(requestsPanel, "requests"); // Add new requests panel
+        
+        // If currently showing requests panel, refresh the view
+        if (getCurrentPanelName().equals("requests")) {
+            ((CardLayout) contentPanel.getLayout()).show(contentPanel, "requests");
+        }
+    }
+    
+    // Method to get user email from database
+    private String getUserEmail(int userId) {
+        String email = "";
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn != null) {
+                String sql = "SELECT email FROM users WHERE user_id = ?";
+                try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                    pstmt.setInt(1, userId);
+                    ResultSet rs = pstmt.executeQuery();
+                    if (rs.next()) {
+                        email = rs.getString("email");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Error getting user email: " + e.getMessage());
+        }
+        return email;
+    }
+    
+    // Method to update complaint counts from database with actual values
+    private void updateComplaintCounts() {
+        try (Connection conn = DBConnection.getConnection()) {
+            if (conn != null) {
+                // Get count of "Need Clarification" complaints
+                String needClarificationSql = 
+                    "SELECT COUNT(*) AS count FROM complaints WHERE user_id = ? AND status = 'Need Clarification'";
+                try (PreparedStatement pstmt = conn.prepareStatement(needClarificationSql)) {
+                    pstmt.setInt(1, userId);
+                    ResultSet rs = pstmt.executeQuery();
+                    if (rs.next()) {
+                        needClarificationCountLabel.setText(String.valueOf(rs.getInt("count")));
+                    }
+                }
+                
+                // Get count of "Pending" complaints
+                String pendingSql = 
+                    "SELECT COUNT(*) AS count FROM complaints WHERE user_id = ? AND status = 'Pending'";
+                try (PreparedStatement pstmt = conn.prepareStatement(pendingSql)) {
+                    pstmt.setInt(1, userId);
+                    ResultSet rs = pstmt.executeQuery();
+                    if (rs.next()) {
+                        pendingCountLabel.setText(String.valueOf(rs.getInt("count")));
+                    }
+                }
+                
+                // Get count of "Awaiting Approval" complaints
+                String awaitingSql = 
+                    "SELECT COUNT(*) AS count FROM complaints WHERE user_id = ? AND status = 'Awaiting Approval'";
+                try (PreparedStatement pstmt = conn.prepareStatement(awaitingSql)) {
+                    pstmt.setInt(1, userId);
+                    ResultSet rs = pstmt.executeQuery();
+                    if (rs.next()) {
+                        awaitingApprovalCountLabel.setText(String.valueOf(rs.getInt("count")));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Error updating complaint counts: " + e.getMessage());
+        }
+    }
+    
+    // Method to update home page stats with actual data
+    private void updateHomePageStats() {
+        try {
+            JPanel homeContent = (JPanel) homePanel.getComponent(0);
+            JPanel welcomeContent = (JPanel) homeContent.getComponent(0);
+            JPanel statsPanel = (JPanel) welcomeContent.getComponent(3);
+            
+            // Connect to database to get actual stats
+            try (Connection conn = DBConnection.getConnection()) {
+                if (conn != null) {
+                    // Get pending count
+                    String pendingSql = 
+                        "SELECT COUNT(*) AS count FROM complaints WHERE user_id = ? AND " +
+                        "(status = 'Pending' OR status = 'In Progress' OR status = 'Need Clarification')";
+                    try (PreparedStatement pstmt = conn.prepareStatement(pendingSql)) {
+                        pstmt.setInt(1, userId);
+                        ResultSet rs = pstmt.executeQuery();
+                        if (rs.next()) {
+                            JPanel pendingBox = (JPanel) statsPanel.getComponent(0);
+                            JLabel pendingValue = (JLabel) pendingBox.getComponent(0);
+                            pendingValue.setText(String.valueOf(rs.getInt("count")));
+                        }
+                    }
+                    
+                    // Get resolved count
+                    String resolvedSql = 
+                        "SELECT COUNT(*) AS count FROM complaints WHERE user_id = ? AND status = 'Resolved'";
+                    try (PreparedStatement pstmt = conn.prepareStatement(resolvedSql)) {
+                        pstmt.setInt(1, userId);
+                        ResultSet rs = pstmt.executeQuery();
+                        if (rs.next()) {
+                            JPanel resolvedBox = (JPanel) statsPanel.getComponent(1);
+                            JLabel resolvedValue = (JLabel) resolvedBox.getComponent(0);
+                            resolvedValue.setText(String.valueOf(rs.getInt("count")));
+                        }
+                    }
+                    
+                    // Get total count
+                    String totalSql = "SELECT COUNT(*) AS count FROM complaints WHERE user_id = ?";
+                    try (PreparedStatement pstmt = conn.prepareStatement(totalSql)) {
+                        pstmt.setInt(1, userId);
+                        ResultSet rs = pstmt.executeQuery();
+                        if (rs.next()) {
+                            JPanel totalBox = (JPanel) statsPanel.getComponent(2);
+                            JLabel totalValue = (JLabel) totalBox.getComponent(0);
+                            totalValue.setText(String.valueOf(rs.getInt("count")));
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Error updating home page stats: " + e.getMessage());
+        }
+    }
+}
